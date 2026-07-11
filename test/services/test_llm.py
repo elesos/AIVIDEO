@@ -986,7 +986,7 @@ class TestSocialMetadata(unittest.TestCase):
 
         with patch.object(llm, "_generate_response", return_value=llm_response):
             response = TestClient(app).post(
-                "/api/v1/social-metadata",
+                "/v1/social-metadata",
                 json=request_body,
             )
 

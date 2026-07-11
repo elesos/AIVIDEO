@@ -10,10 +10,11 @@
 #   - Build with Dockerfile.gpu (NVIDIA CUDA base image)
 #   - Attach GPU device to the api service
 services:
-  webui:
-    build:
-      context: .
-      dockerfile: Dockerfile.gpu
+  # WebUI 已禁用，仅部署 API
+  # webui:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.gpu
   api:
     build:
       context: .
