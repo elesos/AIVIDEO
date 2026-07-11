@@ -43,6 +43,9 @@ def get_application() -> FastAPI:
         description=config.project_description,
         version=config.project_version,
         debug=False,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
