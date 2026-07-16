@@ -145,6 +145,13 @@ class AudioRequest(BaseModel):
     video_source: Optional[str] = "local"
 
 
+class VoicePreviewRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    voice_name: str = Field(min_length=1, max_length=256)
+    voice_volume: float = Field(default=1.0, ge=0.1, le=5.0)
+    voice_rate: float = Field(default=1.0, ge=0.1, le=3.0)
+
+
 class VideoScriptParams:
     """
     {

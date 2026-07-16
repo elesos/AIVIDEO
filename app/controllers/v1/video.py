@@ -6,7 +6,7 @@ from typing import Union
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from loguru import logger
 
 from app.config import config
@@ -27,10 +27,12 @@ from app.models.schema import (
     TaskResponse,
     TaskVideoRequest,
     VideoMaterialUploadResponse,
-    VideoMaterialRetrieveResponse
+    VideoMaterialRetrieveResponse,
+    VoicePreviewRequest,
 )
 from app.services import state as sm
 from app.services import task as tm
+from app.services import voice
 from app.utils import file_security, utils
 
 # 认证依赖项
@@ -131,6 +133,74 @@ def create_audio(
     background_tasks: BackgroundTasks, request: Request, body: AudioRequest
 ):
     return create_task(request, body, stop_at="audio")
+
+
+@router.post(
+    "/voice-preview",
+    response_class=Response,
+    summary="Synthesize a short voice preview",
+    responses={200: {"content": {"audio/mpeg": {}}}},
+)
+def create_voice_preview(request: Request, body: VoicePreviewRequest):
+    request_id = base.get_task_id(request)
+    preview_text = body.text.strip()
+    if not preview_text:
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: preview text is required",
+        )
+    if voice.is_no_voice(body.voice_name):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: no-voice cannot be previewed",
+        )
+
+    temp_dir = utils.storage_dir("temp", create=True)
+    audio_file = os.path.join(temp_dir, f"tmp-voice-{utils.get_uuid()}.mp3")
+    try:
+        sub_maker = voice.tts(
+            text=preview_text,
+            voice_name=body.voice_name,
+            voice_rate=body.voice_rate,
+            voice_file=audio_file,
+            voice_volume=body.voice_volume,
+        )
+        if not sub_maker or not os.path.exists(audio_file):
+            raise HttpException(
+                task_id=request_id,
+                status_code=502,
+                message=f"{request_id}: voice synthesis failed",
+            )
+
+        with open(audio_file, "rb") as audio:
+            content = audio.read()
+        if not content:
+            raise HttpException(
+                task_id=request_id,
+                status_code=502,
+                message=f"{request_id}: voice synthesis returned empty audio",
+            )
+        return Response(
+            content=content,
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-store"},
+        )
+    except HttpException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            f"voice preview failed, request_id: {request_id}, error: {str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=502,
+            message=f"{request_id}: voice synthesis failed",
+        )
+    finally:
+        if os.path.exists(audio_file):
+            os.remove(audio_file)
 
 
 def create_task(
